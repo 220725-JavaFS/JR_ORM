@@ -17,12 +17,23 @@ import com.revature.utils.ConnectionUtil;
 
 
 public class CustomerDAOImpl implements CustomerDAO {
+	
+	private ConnectionUtil connec = new ConnectionUtil();
+
+	public void connectToDatabase(String url, String database, String username, String password) {
+		try {
+			connec.getConnection(url, database, username, password);
+		} catch (SQLException e) {
+			e.printStackTrace();
+			//log here
+		}
+	}
 
 	
-	
+	// should be from any table, not just customers
 	public String columnNames() {
 		try (Connection conn = ConnectionUtil.getConnection()){
-			String sql = "SELECT * FROM customers;"; //returns all info from both tables
+			String sql = "SELECT * FROM customers;"; // make it for all tables
 			Statement statement = conn.createStatement();
 			ResultSet result = statement.executeQuery(sql);
 			ResultSetMetaData resultInfo = result.getMetaData();
@@ -82,7 +93,7 @@ public class CustomerDAOImpl implements CustomerDAO {
 	
 	//----------------------SERIALIZED----Not going through (CLOSED CONNECTION ISSUE)------
 		public void insertCustomer(Object o) {
-			try (Connection conn = ConnectionUtil.getConnection()){
+			try (Connection conn = ConnectionUtil.getConnection(   )){
 				String sql = "\"INSERT INTO customers ("+columnNames()+") VALUES ("+fieldValues(o)+");\"";
 				System.out.println(sql);
 				Statement statement = conn.createStatement();
