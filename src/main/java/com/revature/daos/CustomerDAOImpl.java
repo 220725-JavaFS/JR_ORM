@@ -12,40 +12,58 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.revature.models.Connectivity;
 import com.revature.models.Customers;
 import com.revature.utils.ConnectionUtil;
 
 
 public class CustomerDAOImpl implements CustomerDAO {
 	
-	private ConnectionUtil connec = new ConnectionUtil();
-
-	public void connectToDatabase(String url, String database, String username, String password) {
-		try {
-			connec.getConnection(url, database, username, password);
+	private Connectivity con;
+	
+	private static Logger log = LoggerFactory.getLogger(CustomerDAOImpl.class);
+	
+	
+	public CustomerDAOImpl(Connectivity con) {
+		super();
+		this.con = con;
+//		connectToDatabase(this.con); // calls to connect to database
+	}
+	public CustomerDAOImpl() {
+		super();
+	}
+	
+	/* ----------------might not need this---------------------
+	 
+	public void connectToDatabase(Connectivity con) {
+		try (Connection conn = ConnectionUtil.getConnection(con)){
+			log.info("connectToDatabase successful.");
 		} catch (SQLException e) {
 			e.printStackTrace();
-			//log here
+			log.error("connectToDatabase no good.");
 		}
 	}
-
+	
+	 */
 	
 	// should be from any table, not just customers
-	public String columnNames() {
-		try (Connection conn = ConnectionUtil.getConnection()){
-			String sql = "SELECT * FROM customers;"; // make it for all tables
+	public String columnNames(Object o) {
+		try (Connection conn = ConnectionUtil.getConnection(con)){
+			String sql = "SELECT * FROM "+o.getClass().toString().toLowerCase()+";"; // make it for all tables
 			Statement statement = conn.createStatement();
 			ResultSet result = statement.executeQuery(sql);
 			ResultSetMetaData resultInfo = result.getMetaData();
 		
-			//gives me all the sql columns name in an arrayList
+			//gives me all the sql columns name in an arrayList - starts after the SERIAL Initial Key @Column1
 			StringBuilder builder1 = new StringBuilder();
 			for(int i = 2; i<=resultInfo.getColumnCount();i++) {
 				String columnName = resultInfo.getColumnName(i);
 				builder1.append(columnName+", ");
 			}
 			String finalColumnName = builder1.substring(0, builder1.length()-2);
-		//	System.out.println(finalColumnName);
 			return finalColumnName;
 		}catch(SQLException e) {
 			e.printStackTrace();
@@ -56,6 +74,8 @@ public class CustomerDAOImpl implements CustomerDAO {
 	public String fieldValues(Object o) {
 		
 		Class<?> objectClass = o.getClass();
+		
+		System.out.println(o.getClass().toString()); //--------------testing
 		
 		Field[] fields = objectClass.getDeclaredFields();
 		// this is our sql builder
@@ -90,32 +110,38 @@ public class CustomerDAOImpl implements CustomerDAO {
 		return finalValues;
 	}
 	
-	
+	//1) Creates object in database
 	//----------------------SERIALIZED----Not going through (CLOSED CONNECTION ISSUE)------
-		public void insertCustomer(Object o) {
-			try (Connection conn = ConnectionUtil.getConnection(   )){
-				String sql = "\"INSERT INTO customers ("+columnNames()+") VALUES ("+fieldValues(o)+");\"";
+		public void insertObject(Object o) { 
+			try (Connection conn = ConnectionUtil.getConnection(con)){
+				String sql = "\"INSERT INTO "+o.getClass().toString().toLowerCase()+" ("+columnNames(o)+") VALUES ("+fieldValues(o)+");";
 				System.out.println(sql);
 				Statement statement = conn.createStatement();
 				statement.execute(sql);
-
+				log.info("insertObject successful");
 			}catch(SQLException e) {
 				e.printStackTrace();
+				log.error("insertObject no good");
+				
 			}		
 		}
 		
+		//2) Updates object database
 		//--------------SERIALIZED--------- NOT going through (Closed CONNECTION ISSUE)----
-		public void updateCustomerFinal(Object o) {
-			try (Connection conn = ConnectionUtil.getConnection()){
-				String[] columnArray = columnNames().split(", ");
+		public void updateObject(Object o) {
+			try (Connection conn = ConnectionUtil.getConnection(con)){
+				String[] columnArray = columnNames(o).split(", ");
 				String[] fieldArray = fieldValues(o).split(", ");
+				
+				String className = o.getClass().toString().toLowerCase();
 				StringBuilder strBuilder = new StringBuilder();
+				
 				for (int i = 0; i<columnArray.length;i++) {
 			
 					strBuilder.append(columnArray[i]+" = "+fieldArray[i]+", ");
 				}
 				String finalString = strBuilder.substring(0,strBuilder.length()-2);
-				String sql = "\"UPDATE customers SET "+finalString+" WHERE customers."+columnArray[2]+" = "+fieldArray[2]+" AND customers."+columnArray[3]+" = "+fieldArray[3]+";\"";
+				String sql = "\"UPDATE "+className+" SET "+finalString+" WHERE "+className+"."+columnArray[2]+" = "+fieldArray[2]+" AND "+className+"."+columnArray[3]+" = "+fieldArray[3]+";";
 				System.out.println(sql);
 	
 				Statement statement = conn.createStatement();
@@ -126,43 +152,187 @@ public class CustomerDAOImpl implements CustomerDAO {
 			}		
 		}
 
-
-	// --------------INCOMPLETE turning DATABASE INTO OBJECTS--Might just leave as is-----------------------
-
-	public List<Customers> getAllCustomers() {
-		try (Connection conn = ConnectionUtil.getConnection()){
-			String sql = "SELECT * FROM customers;"; //returns all info from both tables
+		
+	public <T> List<T> getAllObjects(Class<T> clazz) {
+		try (Connection conn = ConnectionUtil.getConnection(con)){
+			
+			List<T> clazzList = new ArrayList<T>();
+		
+			String[] clazzArray = clazz.getName().split("\\.");
+			String clazzName = clazzArray[clazzArray.length-1];
+			
+			String sql = "SELECT * FROM "+clazzName.toLowerCase()+";"; 
 			Statement statement = conn.createStatement();
 			ResultSet result = statement.executeQuery(sql);
+			
+			while(result.next()) { 
+				try {
+					T newObject = clazz.getDeclaredConstructor().newInstance();
+				
+					Field[] fields = clazz.getFields();
+					for (Field f : fields) {
+	
+						String fieldName = f.getName();
+	
+						String setterName = "set" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1);
+						try {
+							Class<?> setterString = clazz.getDeclaredField(fieldName).getType();
+	
+							Method setter = clazz.getMethod(setterName, setterString);
 		
-			List<Customers> customerList = new ArrayList<>();
-			
-			while(result.next()) { // instead of if statement, the while statement will keep returning the next result of the queue.
-				Customers customer = new Customers(
-						result.getString("initial_date"),
-						result.getString("customer_source"),
-						result.getString("first_name"),
-						result.getString("last_name"),
-						result.getString("phone"),
-						result.getString("email"),
-						result.getString("occupation"),
-						result.getInt("times_trained"),
-						result.getString("train_date"),
-						result.getString("notes")
-						);
-			
+							Object fieldType = convertStringToFieldType(result.getString(fieldName), setterString);
+	
+							// sets values to object via for each loop 
+							setter.invoke(newObject, fieldType);
+	
+						} catch (NoSuchFieldException e) {
+							e.printStackTrace();
+						} catch (NoSuchMethodException e) {
+							e.printStackTrace();
+						} catch (IllegalAccessException e) {
+							e.printStackTrace();
+						} catch (InvocationTargetException | InstantiationException e) {
+							e.printStackTrace();
+						}
+					}
+
+					clazzList.add(newObject);
+				} catch (InstantiationException | IllegalAccessException | IllegalArgumentException
+						| InvocationTargetException | NoSuchMethodException | SecurityException e) {
+					log.error("getAllObjects unsuccessful");
+					e.printStackTrace();
+				}
 			}
-			
-			return customerList;
-		}catch(SQLException   e) {
+				log.info("getAllObjects successful");
+				return clazzList;
+		} catch (SQLException e) {
 			e.printStackTrace();
+			log.error("getAllObjects unsuccessful");
 			return null;
 		}
 	}
 
 	
+	//-------------------------------------------------------
+	
+	@Override
+	public <T> T getObjectById(Class<T> clazz, int id) {
+		
+		try(Connection conn = ConnectionUtil.getConnection(con)){
+			String[] array = clazz.getName().split("\\.");
+			String className = array[array.length - 1];
+			String sql = "SELECT * from "+className.toLowerCase()+" WHERE "+className.toLowerCase()+"."+"id = "+id+";";	
+			Statement statement = conn.createStatement();
+			ResultSet result = statement.executeQuery(sql);
+						
+			while(result.next()) { 
+				try {
+					T object = clazz.getDeclaredConstructor().newInstance();
+				
+					Field[] fields = clazz.getFields();
+					for (Field field : fields) {
+	
+						String fieldName = field.getName();
+	
+						String setterName = "set" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1);
+						try {
+							Class<?> setterString = clazz.getDeclaredField(fieldName).getType();
+	
+							Method setterMethod = clazz.getMethod(setterName, setterString);
+	
+							Object fieldType = convertStringToFieldType(result.getString(fieldName), setterString);
+	
+							setterMethod.invoke(object, fieldType);
+	
+						} catch (NoSuchFieldException | NoSuchMethodException | IllegalAccessException | InvocationTargetException | InstantiationException e) {
+							e.printStackTrace();
+						}
+					}
+					log.info("returned object successfully");
+					return object;
+				} catch (InstantiationException | IllegalAccessException | IllegalArgumentException
+					| InvocationTargetException | NoSuchMethodException | SecurityException e1) {
+					e1.printStackTrace();
+				}
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+			return null;
+	}
+	
+	
+	public void deleteObjectById(Object o, int id) {
+		try(Connection conn = ConnectionUtil.getConnection(con)) {		
+			
+			String[] array = o.getClass().getName().split("\\."); 
+			String clazzName = array[array.length-1];
+			
+			String sql = "DELETE FROM "+clazzName+" WHERE "+clazzName+".id = "+id+";";
+	
+			PreparedStatement statement = conn.prepareStatement(sql);
+			statement.executeUpdate();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}	
+	
+	
+	// this will be implemented when the client puts getToWork/jarib/notes
+	@Override
+	public <T> T getFieldValueByFirstName(Object o, String fieldValue, String firstName) { 
+		try(Connection conn = ConnectionUtil.getConnection(con)){
+
+			String[] array = o.getClass().getName().split("\\."); 
+			String clazzName = array[array.length-1];
+			
+			String sql = "SELECT "+columnName+" FROM "+clazzName+" WHERE first_name = "+firstName+";";
+			
+			PreparedStatement statement = conn.prepareStatement(sql);
+			
+			
+			ResultSet result = statement.executeQuery();
+			String temp = ""; 
+			if (result.next()) {
+				temp = result.getString("columnName"); // ----- NOTE: columnName can't be executed. FIND A SOLUTION! this will give an error!
+			}
+			return temp;
+		}catch (SQLException e) {
+			e.printStackTrace();
+			return "hello";
+		}	
+	}
+	
+	
+	public Object convertStringToFieldType(String input, Class<?> type)
+			throws IllegalAccessException, InstantiationException, IllegalArgumentException, InvocationTargetException,
+			NoSuchMethodException, SecurityException {
+		switch (type.getName()) {
+		case "byte":
+			return Byte.valueOf(input);
+		case "short":
+			return Short.valueOf(input);
+		case "int":
+			return Integer.valueOf(input);
+		case "long":
+			return Long.valueOf(input);
+		case "double":
+			return Double.valueOf(input);
+		case "float":
+			return Float.valueOf(input);
+		case "boolean":
+			return Boolean.valueOf(input);
+		case "java.lang.String":
+			return input;
+		default:
+			return type.getDeclaredConstructor().newInstance();
+		}
+	}
+	
+	/* ----------------------------------------Couldnt figure how with double strings on url----------------
+	 
 	public Customers getCustomer(String firstName, String lastName) {
-		try (Connection conn = ConnectionUtil.getConnection()){
+		try (Connection conn = ConnectionUtil.getConnection(con)){
 			
 			String sql = "SELECT * FROM customers WHERE first_name = ? AND last_name = ?;";
 			PreparedStatement statement = conn.prepareStatement(sql);
@@ -187,165 +357,13 @@ public class CustomerDAOImpl implements CustomerDAO {
 						);
 				return cust;
 			}
-		}catch(SQLException e) {
-			e.printStackTrace();
-		}
+	}catch(SQLException e) {
+		e.printStackTrace();
+	}
 		return null;
 	}	
 	
+	*/
 	
-	// ----------------- this is being replaced by THE INSERT CUSTOMER METHOD---------------
-	@Override
-	public void registerCustomer(Customers customer) {
-		try(Connection conn = ConnectionUtil.getConnection()){
-			String sql = "INSERT INTO customers (initial_date, customer_source, first_name, last_name, "
-					+ "phone, email, occupation, times_trained, train_date, notes)"
-					+ "	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
-			
-			PreparedStatement statement = conn.prepareStatement(sql);
-			
-			int count = 0;
-			statement.setString(++count, customer.getInitialDate());
-			statement.setString(++count, customer.getCustomerSource());
-			statement.setString(++count, customer.getFirstName());
-			statement.setString(++count, customer.getLastName());
-			statement.setString(++count, customer.getPhone());
-			statement.setString(++count, customer.getEmail());
-			statement.setString(++count, customer.getOccupation());
-			statement.setInt(++count, customer.getTimesTrained());
-			statement.setString(++count, customer.getTrainedDate());
-			statement.setString(++count, customer.getNotes());
-			
-			statement.execute();
-			
-		}catch(SQLException e) {
-			e.printStackTrace();
-		}
 		
-	}
-	
-	public void updateCustomer(Customers customer) {
-		try(Connection conn = ConnectionUtil.getConnection()){
-			String sql = "UPDATE customers SET initial_date=?, customer_source =?, first_name =?, last_name =?,\r\n"
-					+ "phone =?, email=?, occupation=?, times_trained=?,\r\n"
-					+ "train_date=?, notes=? WHERE customers.first_name = ? AND customers.last_name = ?;";
-			
-			PreparedStatement statement = conn.prepareStatement(sql);
-			
-			int count = 0;
-			statement.setString(++count, customer.getInitialDate());
-			statement.setString(++count, customer.getCustomerSource());
-			statement.setString(++count, customer.getFirstName());
-			statement.setString(++count, customer.getLastName());
-			statement.setString(++count, customer.getPhone());
-			statement.setString(++count, customer.getEmail());
-			statement.setString(++count, customer.getOccupation());
-			statement.setInt(++count, customer.getTimesTrained());
-			statement.setString(++count, customer.getTrainedDate());
-			statement.setString(++count, customer.getNotes());
-			statement.setString(++count, customer.getFirstName());
-			statement.setString(++count, customer.getLastName());
-			
-			statement.execute();	
-			
-		}catch(SQLException e) {
-			e.printStackTrace();
-		}
-		
-	}
-	
-	public void deleteCustomer(String firstName, String lastName) {
-		try(Connection conn = ConnectionUtil.getConnection()){
-			String sql = "DELETE FROM customers WHERE customers.first_name =? AND customers.last_name =?;";
-			
-			PreparedStatement statement = conn.prepareStatement(sql);
-			
-			statement.setString(1, firstName); // this is where SQL injection is checked for. Tim used the example of String though.
-			statement.setString(2, lastName);
-			
-			ResultSet result = statement.executeQuery();	
-			
-		}catch(SQLException e) {
-			e.printStackTrace();
-		}
-		
-	}
-	
-	
-	
-	// this will be implemented when the client puts getToWork/jarib/notes
-	@Override
-	public String getDataByUsername(String firstName, String columnName) { 
-		try(Connection conn = ConnectionUtil.getConnection()){
-			String sql = "SELECT ? FROM customers WHERE first_name = ?;";
-			
-			PreparedStatement statement = conn.prepareStatement(sql);
-			
-			statement.setString(1, columnName); 
-			statement.setString(1, firstName);
-			
-			ResultSet result = statement.executeQuery();
-			String temp = ""; 
-			if (result.next()) {
-				temp = result.getString("columnName"); // ----- NOTE: columnName can't be executed. FIND A SOLUTION! this will give an error!
-			}
-			return temp;
-		}catch (SQLException e) {
-			e.printStackTrace();
-			return null;
-		}	
-	}
-	
-	@Override
-	public Customers getCustomerById(int id) {
-		
-			try (Connection conn = ConnectionUtil.getConnection()){
-				
-				String sql = "SELECT * FROM customers WHERE id= ?;";
-				PreparedStatement statement = conn.prepareStatement(sql);
-				
-				statement.setInt(1, id); // this is where SQL injection is checked for. Tim used the example of String though.
-				
-				ResultSet result = statement.executeQuery();
-				
-				if(result.next()) {
-					Customers cust = new Customers(
-							result.getString("initial_date"),
-							result.getString("customer_source"),
-							result.getString("first_name"),
-							result.getString("last_name"),
-							result.getString("phone"),
-							result.getString("email"),
-							result.getString("occupation"),
-							result.getInt("times_trained"),
-							result.getString("train_date"),
-							result.getString("notes")
-							);
-					return cust;
-				}
-			}catch(SQLException e) {
-				e.printStackTrace();
-			}
-			return null;
-		}
-	
-	
-	
-	
-	//Test with Tim for MONDAY!
-	public static void main(String[] args) {
-		CustomerDAOImpl cDao = new CustomerDAOImpl();
-		List<Customers> list = cDao.getAllCustomers();
-		System.out.println(list);
-		
-		}
-
-
-	
-
-
-	
-	
-	
-	
 }

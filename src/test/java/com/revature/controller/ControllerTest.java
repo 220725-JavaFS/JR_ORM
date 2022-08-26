@@ -9,9 +9,10 @@ public class ControllerTest {
 	
 	private Controller control = new Controller();
 	
-	
 	@BeforeAll
-	public void 
+	public void setUpConnection() {
+		
+	}
 	
 	@BeforeEach
 	
