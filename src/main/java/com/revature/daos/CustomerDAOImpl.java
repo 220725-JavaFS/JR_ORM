@@ -30,13 +30,14 @@ public class CustomerDAOImpl implements CustomerDAO {
 	public CustomerDAOImpl(Connectivity con) {
 		super();
 		this.con = con;
+		log.info("Initialized connectivity object in DAOs");
 //		connectToDatabase(this.con); // calls to connect to database
 	}
 	public CustomerDAOImpl() {
 		super();
 	}
 	
-	/* ----------------might not need this---------------------
+	/* ----------------might not need this-------------
 	 
 	public void connectToDatabase(Connectivity con) {
 		try (Connection conn = ConnectionUtil.getConnection(con)){
@@ -277,32 +278,52 @@ public class CustomerDAOImpl implements CustomerDAO {
 		}
 	}	
 	
-	
-	// this will be implemented when the client puts getToWork/jarib/notes
 	@Override
-	public <T> T getFieldValueByFirstName(Object o, String fieldValue, String firstName) { 
+	public <T> T getObjectByFirstName(Class<T> clazz, String firstName) {
+		
 		try(Connection conn = ConnectionUtil.getConnection(con)){
-
-			String[] array = o.getClass().getName().split("\\."); 
-			String clazzName = array[array.length-1];
-			
-			String sql = "SELECT "+columnName+" FROM "+clazzName+" WHERE first_name = "+firstName+";";
-			
-			PreparedStatement statement = conn.prepareStatement(sql);
-			
-			
-			ResultSet result = statement.executeQuery();
-			String temp = ""; 
-			if (result.next()) {
-				temp = result.getString("columnName"); // ----- NOTE: columnName can't be executed. FIND A SOLUTION! this will give an error!
-			}
-			return temp;
-		}catch (SQLException e) {
-			e.printStackTrace();
-			return "hello";
-		}	
-	}
+			String[] array = clazz.getName().split("\\.");
+			String className = array[array.length - 1];
+			String sql = "SELECT * from "+className.toLowerCase()+" WHERE "+className.toLowerCase()+"."+"first_name = "+firstName+";";	
+			Statement statement = conn.createStatement();
+			ResultSet result = statement.executeQuery(sql);
+						
+			while(result.next()) { 
+				try {
+					T object = clazz.getDeclaredConstructor().newInstance();
+				
+					Field[] fields = clazz.getFields();
+					for (Field field : fields) {
 	
+						String fieldName = field.getName();
+	
+						String setterName = "set" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1);
+						try {
+							Class<?> setterString = clazz.getDeclaredField(fieldName).getType();
+	
+							Method setterMethod = clazz.getMethod(setterName, setterString);
+	
+							Object fieldType = convertStringToFieldType(result.getString(fieldName), setterString);
+	
+							setterMethod.invoke(object, fieldType);
+	
+						} catch (NoSuchFieldException | NoSuchMethodException | IllegalAccessException | InvocationTargetException | InstantiationException e) {
+							e.printStackTrace();
+						}
+					}
+					log.info("returned object successfully");
+					return object;
+				} catch (InstantiationException | IllegalAccessException | IllegalArgumentException
+					| InvocationTargetException | NoSuchMethodException | SecurityException e1) {
+					e1.printStackTrace();
+				}
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+			return null;
+	}
+		
 	
 	public Object convertStringToFieldType(String input, Class<?> type)
 			throws IllegalAccessException, InstantiationException, IllegalArgumentException, InvocationTargetException,
@@ -328,6 +349,8 @@ public class CustomerDAOImpl implements CustomerDAO {
 			return type.getDeclaredConstructor().newInstance();
 		}
 	}
+	
+	
 	
 	/* ----------------------------------------Couldnt figure how with double strings on url----------------
 	 
