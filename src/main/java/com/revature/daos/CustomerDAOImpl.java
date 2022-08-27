@@ -27,16 +27,12 @@ public class CustomerDAOImpl implements CustomerDAO {
 	private static Logger log = LoggerFactory.getLogger(CustomerDAOImpl.class);
 	
 	
-	public CustomerDAOImpl(Connectivity con) {
-		super();
+	public void initializeConnection(Connectivity con) {
 		this.con = con;
 		log.info("Initialized connectivity object in DAOs");
 //		connectToDatabase(this.con); // calls to connect to database
 	}
-	public CustomerDAOImpl() {
-		super();
-	}
-	
+
 	/* ----------------might not need this-------------
 	 
 	public void connectToDatabase(Connectivity con) {
@@ -111,11 +107,9 @@ public class CustomerDAOImpl implements CustomerDAO {
 		return finalValues;
 	}
 	
-	//1) Creates object in database
-	//----------------------SERIALIZED----Not going through (CLOSED CONNECTION ISSUE)------
 		public void insertObject(Object o) { 
 			try (Connection conn = ConnectionUtil.getConnection(con)){
-				String sql = "\"INSERT INTO "+o.getClass().toString().toLowerCase()+" ("+columnNames(o)+") VALUES ("+fieldValues(o)+");";
+				String sql = "\"INSERT INTO "+o.getClass().toString().toLowerCase()+" ("+columnNames(o)+") VALUES ("+fieldValues(o)+");"; // calls fieldValues and columnNames method
 				System.out.println(sql);
 				Statement statement = conn.createStatement();
 				statement.execute(sql);
@@ -128,11 +122,10 @@ public class CustomerDAOImpl implements CustomerDAO {
 		}
 		
 		//2) Updates object database
-		//--------------SERIALIZED--------- NOT going through (Closed CONNECTION ISSUE)----
 		public void updateObject(Object o) {
 			try (Connection conn = ConnectionUtil.getConnection(con)){
-				String[] columnArray = columnNames(o).split(", ");
-				String[] fieldArray = fieldValues(o).split(", ");
+				String[] columnArray = columnNames(o).split(", "); // calls columnNames method
+				String[] fieldArray = fieldValues(o).split(", "); // calls fieldValues method
 				
 				String className = o.getClass().toString().toLowerCase();
 				StringBuilder strBuilder = new StringBuilder();

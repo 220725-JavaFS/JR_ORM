@@ -9,6 +9,9 @@ import com.revature.models.Customers;
 // DAO data access object - this is where we define what type of interactions we can have with our database
 public interface CustomerDAO {
 
+	//initializes connectivity object in DAOs layer
+	public void initializeConnection(Connectivity con);
+	
 	public String columnNames(Object o);
 	public String fieldValues(Object o);
 	
