@@ -3,8 +3,7 @@ package com.revature.daos;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 
-import com.revature.models.Connectivity;
-import com.revature.models.Customers;
+import com.revature.modelsORM.Connectivity;
 
 // DAO data access object - this is where we define what type of interactions we can have with our database
 public interface CustomerDAO {

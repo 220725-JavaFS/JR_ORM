@@ -4,7 +4,7 @@ import java.sql.Connection; //java.sql is the JDBC package
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
-import com.revature.models.Connectivity;
+import com.revature.modelsORM.Connectivity;
 
 public class ConnectionUtil {
 

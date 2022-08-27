@@ -15,12 +15,11 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.revature.models.Connectivity;
-import com.revature.models.Customers;
+import com.revature.modelsORM.Connectivity;
 import com.revature.utils.ConnectionUtil;
 
 
-public class CustomerDAOImpl implements CustomerDAO {
+public class CustomerDAOImpl<T> implements CustomerDAO {
 	
 	private Connectivity con;
 	
