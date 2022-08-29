@@ -14,7 +14,7 @@ public class ConnectionUtil {
 	
 	public static Connection getConnection(Connectivity con) throws SQLException {
 		//checking for any existing connections, if so, returns the connection
-	
+		
 		if(connection!=null && !connection.isClosed()) {
 			return connection;
 		} else {
@@ -33,7 +33,7 @@ public class ConnectionUtil {
 	//  System.getenv("password")			
 	
 		connection = DriverManager.getConnection(urlConnection, con.getUsername(), con.getPassword());
-		
+
 		return connection;
 		
 		}
